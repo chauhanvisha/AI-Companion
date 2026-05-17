@@ -2,12 +2,20 @@ import hashlib
 import os
 
 import psycopg2
-import psycopg2.extras
+import psycopg2.errors
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_DATABASE_URL = os.getenv("DATABASE_URL")
+
+def _get_database_url() -> str:
+    # Streamlit Cloud stores secrets in st.secrets, not os.environ
+    try:
+        import streamlit as st
+        url = st.secrets.get("DATABASE_URL") or os.getenv("DATABASE_URL")
+    except Exception:
+        url = os.getenv("DATABASE_URL")
+    return url
 
 
 def _hash(pw: str) -> str:
@@ -15,7 +23,7 @@ def _hash(pw: str) -> str:
 
 
 def _conn():
-    conn = psycopg2.connect(_DATABASE_URL)
+    conn = psycopg2.connect(_get_database_url(), sslmode="require")
     with conn.cursor() as cur:
         cur.execute(
             """
