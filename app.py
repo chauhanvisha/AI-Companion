@@ -4,19 +4,26 @@ import os
 
 import streamlit as st
 from dotenv import load_dotenv
+import auth
+from prompts import build_system_prompt
+
+# ---------------------------------------------------------------------------
+# Page config — must be the very first Streamlit call
+# ---------------------------------------------------------------------------
+
+st.set_page_config(page_title="SEP AI Coach", page_icon="🎓", layout="centered")
+
+# ---------------------------------------------------------------------------
+# Load secrets — safe to access st.secrets after set_page_config
+# ---------------------------------------------------------------------------
 
 load_dotenv()
 
-# Load Streamlit Cloud secrets into env vars so auth.py can use os.getenv()
 for _key in ["ANTHROPIC_API_KEY", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]:
     try:
-        if _key in st.secrets:
-            os.environ[_key] = str(st.secrets[_key])
+        os.environ.setdefault(_key, str(st.secrets[_key]))
     except Exception:
         pass
-
-import auth
-from prompts import build_system_prompt
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -32,30 +39,14 @@ DEFAULT_MODELS = {"anthropic": "claude-opus-4-7", "openai": "gpt-4o-mini"}
 MODEL = os.getenv("MODEL") or DEFAULT_MODELS.get(PROVIDER, "")
 
 SCENARIOS = [
-    {
-        "key": "interview",
-        "icon": "🎯",
-        "title": "Interview Prep",
-        "description": "Practice mock questions and get real-time feedback",
-    },
-    {
-        "key": "email",
-        "icon": "✉️",
-        "title": "Email Writing",
-        "description": "Draft professional emails that make the right impression",
-    },
-    {
-        "key": "inbox",
-        "icon": "📥",
-        "title": "Inbox Reset",
-        "description": "Build a system to tame your overloaded inbox",
-    },
-    {
-        "key": "conflict",
-        "icon": "🤝",
-        "title": "Workplace Conflict",
-        "description": "Think through tense situations with clarity",
-    },
+    {"key": "interview", "icon": "🎯", "title": "Interview Prep",
+     "description": "Practice mock questions and get real-time feedback"},
+    {"key": "email",     "icon": "✉️",  "title": "Email Writing",
+     "description": "Draft professional emails that make the right impression"},
+    {"key": "inbox",     "icon": "📥", "title": "Inbox Reset",
+     "description": "Build a system to tame your overloaded inbox"},
+    {"key": "conflict",  "icon": "🤝", "title": "Workplace Conflict",
+     "description": "Think through tense situations with clarity"},
 ]
 
 
@@ -65,26 +56,20 @@ SCENARIOS = [
 
 def stream_anthropic(messages, system_prompt):
     from anthropic import Anthropic
-
-    client = Anthropic(api_key=ANTHROPIC_KEY)
+    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     with client.messages.stream(
-        model=MODEL,
-        max_tokens=2048,
-        system=system_prompt,
-        messages=messages,
+        model=MODEL, max_tokens=2048, system=system_prompt, messages=messages,
     ) as stream:
         yield from stream.text_stream
 
 
 def stream_openai(messages, system_prompt):
     from openai import OpenAI
-
-    client = OpenAI(api_key=OPENAI_KEY)
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     stream = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "system", "content": system_prompt}, *messages],
-        temperature=0.7,
-        stream=True,
+        temperature=0.7, stream=True,
     )
     for chunk in stream:
         delta = chunk.choices[0].delta.content
@@ -98,13 +83,6 @@ def stream_reply(messages, system_prompt):
     if PROVIDER == "openai":
         return stream_openai(messages, system_prompt)
     raise RuntimeError(f"Unsupported provider: {PROVIDER!r}")
-
-
-# ---------------------------------------------------------------------------
-# Page config
-# ---------------------------------------------------------------------------
-
-st.set_page_config(page_title="SEP AI Coach", page_icon="🎓", layout="centered")
 
 
 # ---------------------------------------------------------------------------
@@ -202,13 +180,7 @@ def render_chat():
         st.markdown("---")
         nudge_limit = st.number_input(
             "Nudges before showing an example",
-            min_value=0,
-            max_value=5,
-            value=2,
-            help=(
-                "How many times the coach will nudge you to expand a short answer "
-                "before offering a polished example. 0 disables pacing."
-            ),
+            min_value=0, max_value=5, value=2,
         )
         st.markdown("---")
         if st.button("Start a new conversation", use_container_width=True):
@@ -220,10 +192,7 @@ def render_chat():
     st.title(f"{tile['icon']} {tile['title']}")
 
     if not PROVIDER:
-        st.error(
-            "No API key found. Add `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to a "
-            "`.env` file in this directory and restart."
-        )
+        st.error("No API key found. Add ANTHROPIC_API_KEY to Streamlit secrets.")
         st.stop()
 
     system_prompt = build_system_prompt(nudge_limit=nudge_limit, scenario=scenario_key)
@@ -234,15 +203,10 @@ def render_chat():
             st.markdown(msg["content"])
 
     if not messages:
-        primer = [
-            {
-                "role": "user",
-                "content": (
-                    f"[The student just selected the {tile['title']} scenario. "
-                    "Start directly with your opening for that coaching flow.]"
-                ),
-            }
-        ]
+        primer = [{"role": "user", "content": (
+            f"[The student just selected the {tile['title']} scenario. "
+            "Start directly with your opening for that coaching flow.]"
+        )}]
         with st.chat_message("assistant"):
             opener = st.write_stream(stream_reply(primer, system_prompt))
         messages.append({"role": "assistant", "content": opener})
