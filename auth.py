@@ -8,14 +8,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _get_database_url() -> str:
-    # Streamlit Cloud stores secrets in st.secrets, not os.environ
+def _get_db_params() -> dict:
     try:
         import streamlit as st
-        url = st.secrets.get("DATABASE_URL") or os.getenv("DATABASE_URL")
+        return {
+            "host":     st.secrets.get("DB_HOST")     or os.getenv("DB_HOST"),
+            "port":     st.secrets.get("DB_PORT")     or os.getenv("DB_PORT", "5432"),
+            "dbname":   st.secrets.get("DB_NAME")     or os.getenv("DB_NAME", "postgres"),
+            "user":     st.secrets.get("DB_USER")     or os.getenv("DB_USER"),
+            "password": st.secrets.get("DB_PASSWORD") or os.getenv("DB_PASSWORD"),
+            "sslmode":  "require",
+        }
     except Exception:
-        url = os.getenv("DATABASE_URL")
-    return url
+        return {
+            "host":     os.getenv("DB_HOST"),
+            "port":     os.getenv("DB_PORT", "5432"),
+            "dbname":   os.getenv("DB_NAME", "postgres"),
+            "user":     os.getenv("DB_USER"),
+            "password": os.getenv("DB_PASSWORD"),
+            "sslmode":  "require",
+        }
 
 
 def _hash(pw: str) -> str:
@@ -23,13 +35,10 @@ def _hash(pw: str) -> str:
 
 
 def _conn():
-    url = _get_database_url()
-    if not url:
-        raise RuntimeError("DATABASE_URL secret is missing. Add it in Streamlit Cloud → App Settings → Secrets.")
-    # Append sslmode to URL rather than passing as kwarg to avoid conflicts
-    if "sslmode" not in url:
-        url += "?sslmode=require"
-    conn = psycopg2.connect(url)
+    params = _get_db_params()
+    if not params["host"]:
+        raise RuntimeError("DB_HOST secret is missing. Add DB_HOST, DB_USER, DB_PASSWORD etc. in Streamlit secrets.")
+    conn = psycopg2.connect(**params)
     with conn.cursor() as cur:
         cur.execute(
             """
