@@ -23,7 +23,13 @@ def _hash(pw: str) -> str:
 
 
 def _conn():
-    conn = psycopg2.connect(_get_database_url(), sslmode="require")
+    url = _get_database_url()
+    if not url:
+        raise RuntimeError("DATABASE_URL secret is missing. Add it in Streamlit Cloud → App Settings → Secrets.")
+    # Append sslmode to URL rather than passing as kwarg to avoid conflicts
+    if "sslmode" not in url:
+        url += "?sslmode=require"
+    conn = psycopg2.connect(url)
     with conn.cursor() as cur:
         cur.execute(
             """
