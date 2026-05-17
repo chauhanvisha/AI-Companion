@@ -5,10 +5,18 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
+load_dotenv()
+
+# Load Streamlit Cloud secrets into env vars so auth.py can use os.getenv()
+for _key in ["ANTHROPIC_API_KEY", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]:
+    try:
+        if _key in st.secrets:
+            os.environ[_key] = str(st.secrets[_key])
+    except Exception:
+        pass
+
 import auth
 from prompts import build_system_prompt
-
-load_dotenv()
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")

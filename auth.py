@@ -3,31 +3,6 @@ import os
 
 import psycopg2
 import psycopg2.errors
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
-def _get_db_params() -> dict:
-    try:
-        import streamlit as st
-        return {
-            "host":     st.secrets.get("DB_HOST")     or os.getenv("DB_HOST"),
-            "port":     st.secrets.get("DB_PORT")     or os.getenv("DB_PORT", "5432"),
-            "dbname":   st.secrets.get("DB_NAME")     or os.getenv("DB_NAME", "postgres"),
-            "user":     st.secrets.get("DB_USER")     or os.getenv("DB_USER"),
-            "password": st.secrets.get("DB_PASSWORD") or os.getenv("DB_PASSWORD"),
-            "sslmode":  "require",
-        }
-    except Exception:
-        return {
-            "host":     os.getenv("DB_HOST"),
-            "port":     os.getenv("DB_PORT", "5432"),
-            "dbname":   os.getenv("DB_NAME", "postgres"),
-            "user":     os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "sslmode":  "require",
-        }
 
 
 def _hash(pw: str) -> str:
@@ -35,10 +10,14 @@ def _hash(pw: str) -> str:
 
 
 def _conn():
-    params = _get_db_params()
-    if not params["host"]:
-        raise RuntimeError("DB_HOST secret is missing. Add DB_HOST, DB_USER, DB_PASSWORD etc. in Streamlit secrets.")
-    conn = psycopg2.connect(**params)
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT", "5432"),
+        dbname=os.getenv("DB_NAME", "postgres"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        sslmode="require",
+    )
     with conn.cursor() as cur:
         cur.execute(
             """
