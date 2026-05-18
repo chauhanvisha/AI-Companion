@@ -1,10 +1,6 @@
-"""System prompt for the SEP AI Coach chatbot.
+"""System prompt for the SEP AI Coach chatbot."""
 
-A single prompt handles triage (deciding which of four scenarios fits the
-student's situation) and then runs the matching coaching flow. Content is
-adapted from the HighView SEP AI Scenarios doc.
-"""
-
+from datetime import datetime
 
 _SCENARIO_NAMES = {
     "interview": "Practice Interview",
@@ -13,17 +9,58 @@ _SCENARIO_NAMES = {
     "conflict":  "Conflict Navigation",
 }
 
+SESSION_SUMMARY_PROMPT = (
+    "You just finished a coaching session with a student. Based on the conversation above, "
+    "write exactly 3 bullet points summarizing:\n"
+    "1. What the student worked on\n"
+    "2. One thing they struggled with or needs improvement\n"
+    "3. One thing they did well or improved during this session\n\n"
+    "Be specific. Use the student's actual words or examples where possible.\n"
+    "Format: plain bullet points starting with '• ', no headers, max 20 words each."
+)
 
-def build_system_prompt(nudge_limit: int = 2, scenario: str | None = None) -> str:
-    base = _TEMPLATE.format(nudge_limit=nudge_limit)
-    if scenario is None:
-        return base
-    name = _SCENARIO_NAMES.get(scenario, scenario)
-    prefix = (
-        f"You are acting as the {name} coach. "
-        f"Start directly in {name} mode — do not ask the student which scenario they want.\n\n"
-    )
-    return prefix + base
+
+def build_system_prompt(
+    nudge_limit: int = 2,
+    scenario: str | None = None,
+    profile: dict | None = None,
+    session_notes: list[dict] | None = None,
+) -> str:
+    parts = []
+
+    # Student profile + history block
+    if profile and (profile.get("field") or profile.get("target_role")):
+        field = profile.get("field", "unspecified")
+        role = profile.get("target_role", "unspecified")
+        profile_block = (
+            "STUDENT PROFILE:\n"
+            f"- Field of study: {field}\n"
+            f"- Target role: {role}\n"
+        )
+        if session_notes:
+            profile_block += "\nRECENT COACHING HISTORY (most recent first):\n"
+            for note in session_notes:
+                scenario_name = _SCENARIO_NAMES.get(note["scenario"], note["scenario"])
+                date_str = note["created_at"].strftime("%b %d") if hasattr(note["created_at"], "strftime") else str(note["created_at"])[:10]
+                profile_block += f"- [{date_str}] {scenario_name}: {note['notes']}\n"
+
+        profile_block += (
+            "\nAdapt ALL coaching — questions, examples, conflict scenarios, inbox emails, "
+            "email recipients — to be relevant and realistic for this student's specific field "
+            "and target role. Do not use generic examples when field-specific ones exist.\n"
+        )
+        parts.append(profile_block)
+
+    # Scenario prefix
+    if scenario is not None:
+        name = _SCENARIO_NAMES.get(scenario, scenario)
+        parts.append(
+            f"You are acting as the {name} coach. "
+            f"Start directly in {name} mode — do not ask the student which scenario they want."
+        )
+
+    parts.append(_TEMPLATE.format(nudge_limit=nudge_limit))
+    return "\n\n".join(parts)
 
 
 _TEMPLATE = """You are an AI coach for college students. You help with one of four scenarios — but the student does NOT pick from a menu. You figure out which scenario fits based on what they tell you, then guide them through it.
@@ -225,4 +262,7 @@ GENERAL RULES (apply across all scenarios)
 - Don't dump entire flows in a single message. Pace yourself — this is a conversation.
 - If the student wants to switch scenarios, smoothly transition.
 - Stay in coach mode. Don't break character to explain that you're an AI or that there are "four scenarios."
+- If the student says "I don't know", "skip", "pass", or "not sure" — accept it gracefully, briefly acknowledge, and move to the next step in the flow. Never loop on the same question after this.
+- If the student goes off-topic (talks about something unrelated to the current scenario), briefly acknowledge their concern in one sentence, then redirect: "Let's keep that in mind — for now, let's get back to [current step]."
+- If a student's answer is unusual or unexpected but clearly genuine, treat it as complete and give feedback on what they said. Do not nudge just because the answer surprised you.
 """
