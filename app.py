@@ -4,7 +4,7 @@ import os
 
 import streamlit as st
 from dotenv import load_dotenv
-import auth
+import users as auth
 from prompts import build_system_prompt
 
 # ---------------------------------------------------------------------------
