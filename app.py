@@ -41,10 +41,10 @@ MODEL = os.getenv("MODEL") or DEFAULT_MODELS.get(PROVIDER, "")
 SCENARIOS = [
     {"key": "interview", "icon": "🎯", "title": "Interview Prep",
      "description": "Practice mock questions and get real-time feedback"},
-    {"key": "email",     "icon": "✉️",  "title": "Email Writing",
-     "description": "Draft professional emails that make the right impression"},
     {"key": "inbox",     "icon": "📥", "title": "Inbox Reset",
      "description": "Build a system to tame your overloaded inbox"},
+    {"key": "email",     "icon": "✉️",  "title": "Email Writing",
+     "description": "Draft professional emails that make the right impression"},
     {"key": "conflict",  "icon": "🤝", "title": "Workplace Conflict",
      "description": "Think through tense situations with clarity"},
 ]
@@ -208,7 +208,7 @@ def render_onboarding():
     st.markdown("Let's personalise your experience so the AI can coach you in a way that's actually relevant to you.")
     st.markdown("---")
 
-    st.markdown("#### Two quick questions:")
+    st.markdown("#### Three quick questions:")
     field = st.text_input(
         "What are you studying?",
         placeholder="e.g. Computer Science, Nursing, Criminal Justice, Marine Biology...",
@@ -219,13 +219,18 @@ def render_onboarding():
         placeholder="e.g. Software internship, Clinical rotation, Policy research, Fashion design...",
         key="onboard_role",
     )
+    school = st.text_input(
+        "What school do you go to?",
+        placeholder="e.g. Santa Clara University, University of Denver, UCLA...",
+        key="onboard_school",
+    )
 
     col_go, col_skip = st.columns([3, 1])
     with col_go:
         if st.button("Let's go →", use_container_width=True, key="btn_onboard"):
-            if field.strip() or role.strip():
-                auth.save_profile(st.session_state.user, field.strip(), role.strip())
-                st.session_state.profile = {"field": field.strip(), "target_role": role.strip()}
+            if field.strip() or role.strip() or school.strip():
+                auth.save_profile(st.session_state.user, field.strip(), role.strip(), school.strip())
+                st.session_state.profile = {"field": field.strip(), "target_role": role.strip(), "school": school.strip()}
             else:
                 st.session_state.profile = {}
             st.rerun()

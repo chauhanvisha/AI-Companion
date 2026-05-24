@@ -30,6 +30,7 @@ def _conn():
                 username    TEXT PRIMARY KEY,
                 field       TEXT,
                 target_role TEXT,
+                school      TEXT,
                 updated_at  TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS session_notes (
@@ -92,12 +93,12 @@ def login(username: str, password: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def get_profile(username: str) -> dict | None:
-    """Return {"field": ..., "target_role": ...} or None if no profile saved yet."""
+    """Return {"field": ..., "target_role": ..., "school": ...} or None if no profile saved yet."""
     conn = _conn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT field, target_role FROM user_profiles WHERE username = %s",
+                "SELECT field, target_role, school FROM user_profiles WHERE username = %s",
                 (username,),
             )
             row = cur.fetchone()
@@ -106,20 +107,21 @@ def get_profile(username: str) -> dict | None:
     return dict(row) if row else None
 
 
-def save_profile(username: str, field: str, target_role: str) -> None:
+def save_profile(username: str, field: str, target_role: str, school: str = "") -> None:
     conn = _conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO user_profiles (username, field, target_role, updated_at)
-                VALUES (%s, %s, %s, NOW())
+                INSERT INTO user_profiles (username, field, target_role, school, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
                 ON CONFLICT (username) DO UPDATE
                     SET field = EXCLUDED.field,
                         target_role = EXCLUDED.target_role,
+                        school = EXCLUDED.school,
                         updated_at = NOW()
                 """,
-                (username, field, target_role),
+                (username, field, target_role, school),
             )
         conn.commit()
     finally:
